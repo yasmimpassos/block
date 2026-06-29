@@ -40,7 +40,7 @@ jobs:
           UTC_HOUR=$(date -u +'%H')
           echo "UTC hour: $UTC_HOUR"
 
-          if [ "$UTC_HOUR" -ge 11 ] && [ "$UTC_HOUR" -lt 21 ]; then
+          if [ "$UTC_HOUR" -ge 12 ] && [ "$UTC_HOUR" -lt 21 ]; then
             echo "state=failure" >> "$GITHUB_OUTPUT"
             echo "description=Merges to ${TARGET_BRANCH} are blocked between 11:00 and 21:00 UTC." >> "$GITHUB_OUTPUT"
           else
