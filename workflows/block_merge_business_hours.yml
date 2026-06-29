@@ -11,7 +11,7 @@ on:
       - master
   schedule:
     # flip the status of open PRs at the window boundaries (UTC)
-    - cron: '12 11 * * *'   # 11:00 UTC -> start blocking
+    - cron: '17 11 * * *'   # 11:00 UTC -> start blocking
     - cron: '0 21 * * *'   # 21:00 UTC -> stop blocking
 
 permissions:
