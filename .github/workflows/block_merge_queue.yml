@@ -1,0 +1,46 @@
+# =============================================================================
+# ABORDAGEM 3 — Merge Queue (avalia no MOMENTO do merge, sem cron)
+# -----------------------------------------------------------------------------
+# Como funciona:
+#   - Quando um PR entra na merge queue, o GitHub roda os required checks de novo
+#     contra o "merge group". Esse check verifica a hora UTC nesse instante e
+#     falha se estiver na janela de bloqueio -> o PR NÃO é mergeado.
+#
+# Prós:  avaliado na hora real do merge (preciso), NÃO depende de cron/atraso.
+# Contras: exige habilitar a Merge Queue no repo e mudar o fluxo (devs usam
+#          "Merge when ready" em vez do botão normal).
+#
+# Setup obrigatório:
+#   1. Settings -> Branches -> regra da master -> "Require merge queue".
+#   2. Marcar este check ("time-gate") como required status check na master.
+#   3. Mergear PRs pela fila (Merge when ready).
+#
+# Teste: tente colocar um PR na fila dentro da janela (11-21 UTC) -> deve travar.
+# =============================================================================
+name: Block merges (merge queue time gate)
+
+on:
+  merge_group:
+  # também roda no PR só para o check aparecer/dar visibilidade antes da fila
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+    branches:
+      - merge
+
+jobs:
+  time-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Enforce merge window (UTC)
+        run: |
+          UTC_HOUR=$(date -u +'%H')
+          echo "UTC hour: $UTC_HOUR"
+
+          if [ "$UTC_HOUR" -ge 11 ] && [ "$UTC_HOUR" -lt 21 ]; then
+            echo "::error ::Merges to master are blocked between 11:00 and 21:00 UTC."
+            exit 1
+          fi
+          echo "Outside business hours — merge allowed."
