@@ -13,6 +13,8 @@ on:
     # flip the status of open PRs at the window boundaries (UTC)
     - cron: '0 12 * * *'   # 11:00 UTC -> start blocking
     - cron: '0 21 * * *'   # 21:00 UTC -> stop blocking
+  # dispara o MESMO caminho do schedule sob demanda, sem depender do cron
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -22,7 +24,7 @@ permissions:
 jobs:
   enforce-time-window:
     # run for PRs targeting master, and for the scheduled (cron) runs
-    if: github.event_name == 'schedule' || github.base_ref == 'master'
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || github.base_ref == 'master'
     runs-on: ubuntu-latest
 
     env:
@@ -60,7 +62,7 @@ jobs:
             -f description="${{ steps.window.outputs.description }}"
 
       - name: Update status on all open PRs targeting master
-        if: github.event_name == 'schedule'
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         run: |
           # head commit of every open PR whose base is the target branch
           shas=$(gh pr list \
