@@ -1,0 +1,87 @@
+name: Block merges to master during business hours
+
+on:
+  pull_request:
+    # re-evaluate whenever a PR targeting master changes
+    types:
+      - opened
+      - synchronize
+      - reopened
+    branches:
+      - master
+  schedule:
+    # flip the status of open PRs at the window boundaries (UTC)
+    - cron: '12 11 * * *'   # 11:00 UTC -> start blocking
+    - cron: '0 21 * * *'   # 21:00 UTC -> stop blocking
+
+permissions:
+  contents: read
+  statuses: write       # post commit statuses on PR head commits
+  pull-requests: read   # list open PRs on the scheduled run
+
+jobs:
+  enforce-time-window:
+    # run for PRs targeting master, and for the scheduled (cron) runs
+    if: github.event_name == 'schedule' || github.base_ref == 'master'
+    runs-on: ubuntu-latest
+
+    env:
+      GH_TOKEN: ${{ github.token }}
+      # this context must be added as a *required status check* on master
+      # in branch protection for the block to actually prevent merges.
+      STATUS_CONTEXT: block-merge/business-hours
+      TARGET_BRANCH: master
+
+    steps:
+      - name: Determine merge window (UTC)
+        id: window
+        run: |
+          # current UTC hour (00–23)
+          UTC_HOUR=$(date -u +'%H')
+          echo "UTC hour: $UTC_HOUR"
+
+          if [ "$UTC_HOUR" -ge 11 ] && [ "$UTC_HOUR" -lt 21 ]; then
+            echo "state=failure" >> "$GITHUB_OUTPUT"
+            echo "description=Merges to ${TARGET_BRANCH} are blocked between 11:00 and 21:00 UTC." >> "$GITHUB_OUTPUT"
+          else
+            echo "state=success" >> "$GITHUB_OUTPUT"
+            echo "description=OK to merge now (outside business hours)." >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Update status on the current PR
+        if: github.event_name == 'pull_request'
+        run: |
+          gh api \
+            --method POST \
+            -H "Accept: application/vnd.github+json" \
+            "/repos/${{ github.repository }}/statuses/${{ github.event.pull_request.head.sha }}" \
+            -f state="${{ steps.window.outputs.state }}" \
+            -f context="$STATUS_CONTEXT" \
+            -f description="${{ steps.window.outputs.description }}"
+
+      - name: Update status on all open PRs targeting master
+        if: github.event_name == 'schedule'
+        run: |
+          # head commit of every open PR whose base is the target branch
+          shas=$(gh pr list \
+            --repo "${{ github.repository }}" \
+            --base "$TARGET_BRANCH" \
+            --state open \
+            --json headRefOid \
+            --jq '.[].headRefOid')
+
+          if [ -z "$shas" ]; then
+            echo "No open PRs targeting ${TARGET_BRANCH} — nothing to update."
+            exit 0
+          fi
+
+          for sha in $shas; do
+            echo "Updating status for $sha -> ${{ steps.window.outputs.state }}"
+            gh api \
+              --method POST \
+              -H "Accept: application/vnd.github+json" \
+              "/repos/${{ github.repository }}/statuses/$sha" \
+              -f state="${{ steps.window.outputs.state }}" \
+              -f context="$STATUS_CONTEXT" \
+              -f description="${{ steps.window.outputs.description }}"
+          done
