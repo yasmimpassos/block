@@ -11,7 +11,7 @@ on:
       - master
   schedule:
     # flip the status of open PRs at the window boundaries (UTC)
-    - cron: '30 11 * * *'   # 11:00 UTC -> start blocking
+    - cron: '0 12 * * *'   # 11:00 UTC -> start blocking
     - cron: '0 21 * * *'   # 21:00 UTC -> stop blocking
 
 permissions:
@@ -40,7 +40,7 @@ jobs:
           UTC_HOUR=$(date -u +'%H')
           echo "UTC hour: $UTC_HOUR"
 
-          if [ "$UTC_HOUR" -ge 12 ] && [ "$UTC_HOUR" -lt 21 ]; then
+          if [ "$UTC_HOUR" -ge 13 ] && [ "$UTC_HOUR" -lt 21 ]; then
             echo "state=failure" >> "$GITHUB_OUTPUT"
             echo "description=Merges to ${TARGET_BRANCH} are blocked between 11:00 and 21:00 UTC." >> "$GITHUB_OUTPUT"
           else
